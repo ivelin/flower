@@ -1,3 +1,7 @@
+:og:description: Run federated learning simulations in Flower using the VirtualClientEngine for scalable, resource-aware, and multi-node simulations on any system configuration.
+.. meta::
+    :description: Run federated learning simulations in Flower using the VirtualClientEngine for scalable, resource-aware, and multi-node simulations on any system configuration.
+
 .. |clientapp_link| replace:: ``ClientApp``
 
 .. |message_link| replace:: ``Message``
@@ -29,6 +33,15 @@ through a complex setup process; you might want to validate your algorithm in di
 scenarios at varying levels of data and system heterogeneity, client availability,
 privacy budgets, etc. These are among some of the use cases where simulating FL
 workloads makes sense.
+
+.. note::
+
+    Flower's ``Simulation Engine`` is built on top of `Ray <https://www.ray.io/>`_, an
+    open-source framework for scalable Python workloads. Flower fully supports Linux and
+    macOS. On Windows, Ray support remains experimental, and while you can run
+    simulations directly from the `PowerShell
+    <https://learn.microsoft.com/en-us/powershell/scripting/overview?view=powershell-7.5>`_,
+    we recommend using `WSL2 <https://learn.microsoft.com/en-us/windows/wsl/about>`_.
 
 .. tip::
 
@@ -75,8 +88,8 @@ workloads makes sense.
             </a>
     - - .. raw:: html
 
-            <a href="https://youtu.be/ppYemmT2mOs">
-                <img src="https://img.youtube.com/vi/ppYemmT2mOs/0.jpg" alt="Desginging Stateful ClientApps" width="200"/>
+            <a href="https://youtu.be/ir2okeinZ2g">
+                <img src="https://img.youtube.com/vi/ir2okeinZ2g/0.jpg" alt="Desginging Stateful ClientApps" width="200"/>
             </a>
       - .. raw:: html
 

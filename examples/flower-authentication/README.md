@@ -6,11 +6,14 @@ framework: [torch, torchvision]
 
 # Flower Federations with Authentication 🧪
 
-> \[!NOTE\]
+> [!NOTE]
 > 🧪 = This example covers experimental features that might change in future versions of Flower.
 > Please consult the regular PyTorch examples ([quickstart](https://github.com/adap/flower/tree/main/examples/quickstart-pytorch), [advanced](https://github.com/adap/flower/tree/main/examples/advanced-pytorch)) to learn how to use Flower with PyTorch.
 
 The following steps describe how to start a long-running Flower server (SuperLink) and a long-running Flower clients (SuperNode) with authentication enabled. The task is to train a simple CNN for image classification using PyTorch.
+
+> [!TIP]
+> Follow this [how-to guide](https://flower.ai/docs/framework/how-to-run-flower-with-deployment-engine.html) to learn more about Flower's Deployment Engine, how setting up [secure TLS-enabled communications](https://flower.ai/docs/framework/how-to-enable-tls-connections.html) and [SuperNode authentication](https://flower.ai/docs/framework/how-to-authenticate-supernodes.html) works. If you are already familiar with how the Deployment Engine works, you may want to learn how to run this same example using Docker. Check out the [Flower with Docker](https://flower.ai/docs/framework/docker/index.html) documentation.
 
 ## Project Setup
 
@@ -46,30 +49,39 @@ Install the dependencies defined in `pyproject.toml` as well as the `authexample
 pip install -e .
 ```
 
-## Generate public and private keys
+## Generate TLS certificates
 
-The `generate.sh` script by default generates certificates for creating a secure TLS connection
-and three private and public key pairs for one server and two clients.
+The `generate_cert.sh` script generates certificates for creating a secure TLS connection between the SuperLink and SuperNodes, as well as between the flwr CLI (user) and the SuperLink.
 
-> \[!NOTE\]
+> [!NOTE]
 > Note that this script should only be used for development purposes and not for creating production key pairs.
 
 ```bash
-./generate.sh
+./generate_cert.sh
+```
+
+## Generate public and private keys for SuperNode authentication
+
+The `generate_auth_keys.sh` script generates three private and public key pairs. One pair for the SuperLink and two pairs for the two SuperNodes.
+
+> [!NOTE]
+> Note that this script should only be used for development purposes and not for creating production key pairs.
+
+```bash
+./generate_auth_keys.sh
 ```
 
 You can generate more keys by specifying the number of client credentials that you wish to generate.
 The script also generates a CSV file that includes each of the generated (client) public keys.
 
 ```bash
-./generate.sh {your_number_of_clients}
+./generate_auth_keys.sh {your_number_of_clients}
 ```
 
 ## Start the long-running Flower server (SuperLink)
 
 Starting long-running Flower server component (SuperLink) and enable authentication is very easy; all you need to do is type
-`--auth-list-public-keys` containing file path to the known `client_public_keys.csv`, `--auth-superlink-private-key`
-containing file path to the SuperLink's private key `server_credentials`, and `--auth-superlink-public-key` containing file path to the SuperLink's public key `server_credentials.pub`. Notice that you can only enable authentication with a secure TLS connection.
+`--auth-list-public-keys` containing file path to the known `client_public_keys.csv`. Notice that you can only enable authentication with a secure TLS connection.
 
 Let's first launch the `SuperLink`:
 
@@ -78,16 +90,14 @@ flower-superlink \
     --ssl-ca-certfile certificates/ca.crt \
     --ssl-certfile certificates/server.pem \
     --ssl-keyfile certificates/server.key \
-    --auth-list-public-keys keys/client_public_keys.csv \
-    --auth-superlink-private-key keys/server_credentials \
-    --auth-superlink-public-key keys/server_credentials.pub
+    --auth-list-public-keys keys/client_public_keys.csv
 ```
 
 At this point your server-side is idling. Next, let's connect two `SuperNode`s, and then we'll start a run.
 
 ## Start the long-running Flower client (SuperNode)
 
-> \[!NOTE\]
+> [!NOTE]
 > Typically each `SuperNode` runs in a different entity/organization which has access to a dataset. In this example we are going to artificially create N dataset splits and saved them into a new directory called `datasets/`. Then, each `SuperNode` will be pointed to the dataset it should load via the `--node-config` argument. We provide a script that does the download, partition and saving of CIFAR-10.
 
 ```bash
@@ -119,7 +129,7 @@ flower-supernode \
 If you generated more than 2 client credentials, you can add more clients by opening new terminal windows and running the command
 above. Don't forget to specify the correct client private and public keys for each client instance you created.
 
-> \[!TIP\]
+> [!TIP]
 > Note the `--node-config` passed when spawning the `SuperNode` is accessible to the `ClientApp` via the context. In this example, the `client_fn()` uses it to load the dataset and then proceed with the training of the model.
 >
 > ```python

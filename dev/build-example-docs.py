@@ -64,13 +64,13 @@ categories = {
 urls = {
     # Frameworks
     "Android": "https://www.android.com/",
+    "catboost": "https://catboost.ai/docs/en/",
     "C++": "https://isocpp.org/",
     "Docker": "https://www.docker.com/",
     "JAX": "https://jax.readthedocs.io/en/latest/",
     "Java": "https://www.java.com/",
     "Keras": "https://keras.io/",
     "Kotlin": "https://kotlinlang.org/",
-    "mlcube": "https://docs.mlcommons.org/mlcube/",
     "MLX": "https://ml-explore.github.io/mlx/build/html/index.html",
     "MONAI": "https://monai.io/",
     "PEFT": "https://huggingface.co/docs/peft/index",
@@ -83,7 +83,6 @@ urls = {
     "opacus": "https://opacus.ai/",
     "pandas": "https://pandas.pydata.org/",
     "scikit-learn": "https://scikit-learn.org/",
-    "tabnet": "https://github.com/titu1994/tf-TabNet",
     "tensorboard": "https://www.tensorflow.org/tensorboard",
     "tensorflow": "https://www.tensorflow.org/",
     "torch": "https://pytorch.org/",

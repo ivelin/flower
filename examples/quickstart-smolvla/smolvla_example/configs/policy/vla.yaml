@@ -1,0 +1,85 @@
+# @package _global_
+
+# Configuration for SmolVLA fine-tuning on SO-100 datasets
+# Based on SmolVLA paper evaluation setup
+
+seed: 100000
+dataset_repo_id: lerobot/svla_so100_pick_place  # Will be overridden per task
+
+override_dataset_stats:
+  # SmolVLA uses different normalization
+  observation.image:
+    mean: [[[0.485]], [[0.456]], [[0.406]]]  # ImageNet means
+    std: [[[0.229]], [[0.224]], [[0.225]]]   # ImageNet stds
+  observation.state:
+    min: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # SO-100 joint limits
+    max: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+  action:
+    min: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    max: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+
+training:
+  offline_steps: 10000  # Per client local epochs
+  online_steps: 0
+  eval_freq: 5000
+  save_freq: 5000
+  save_checkpoint: true
+
+  batch_size: 16  # Efficient for small datasets
+  grad_clip_norm: 1.0
+  lr: 5e-6  # Low for fine-tuning
+  lr_scheduler: cosine
+  lr_warmup_steps: 100
+  adam_betas: [0.9, 0.999]
+  adam_eps: 1.0e-8
+  adam_weight_decay: 1.0e-4
+
+  delta_timestamps:
+    observation.image: "[-0.1, 0.0]"
+    observation.state: "[-0.1, 0.0]"
+    action: "[-0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]"
+
+eval:
+  n_episodes: 50
+  batch_size: 1
+
+policy:
+  name: vla
+  class: lerobot.policies.smolvla.SmolVLAPolicy
+  model_name: "lerobot/smolvla_base"
+
+  # Input / output structure for SO-100
+  n_obs_steps: 2
+  horizon: 8  # Shorter for manipulation
+  n_action_steps: 8
+
+  input_shapes:
+    observation.image: [3, 96, 96]  # SmolVLA input size
+    observation.state: [7]  # SO-100 joints
+  output_shapes:
+    action: [7]  # SO-100 actions
+
+  # Normalization
+  input_normalization_modes:
+    observation.image: mean_std
+    observation.state: min_max
+  output_normalization_modes:
+    action: min_max
+
+  # Architecture
+  vision_backbone: dinov2_vitb14  # SmolVLA uses DINOv2
+  crop_shape: [84, 84]
+  crop_is_random: true
+  spatial_softmax_num_keypoints: 64
+
+  # Language model
+  language_model: llama_3.2_1b  # SmolVLA language model
+  max_lang_len: 256
+
+  # Flow matching for action generation
+  flow_matching:
+    sigma: 0.0
+    use_consistency: true
+
+  # Inference
+  num_inference_steps: 10  # For faster inference
