@@ -181,7 +181,15 @@ class SmolVLAClient(Client):
             return GetParametersRes(parameters=Parameters([], "numpy"), status=Status(code=Code.OK, message="OK"))
 
         import torch
-        params_list = [val.cpu().numpy() for val in self.model.state_dict().values()]
+        params_list = []
+        for val in self.model.state_dict().values():
+            # Handle both torch tensors and numpy arrays
+            if hasattr(val, 'cpu'):
+                # It's a torch tensor
+                params_list.append(val.cpu().numpy())
+            else:
+                # It's already a numpy array
+                params_list.append(val)
         return GetParametersRes(
             parameters=Parameters(params_list, "numpy"),
             status=Status(code=Code.OK, message="OK")
@@ -257,7 +265,7 @@ class SmolVLAClient(Client):
                 training_time = time.time() - start_time
 
                 # Get updated parameters
-                updated_params = self.get_parameters(GetParametersIns()).parameters
+                updated_params = self.get_parameters(GetParametersIns(config={})).parameters
                 metrics = {
                     "loss": total_loss / num_batches,
                     "epochs": local_epochs,
@@ -285,7 +293,7 @@ class SmolVLAClient(Client):
                         if batch_idx % 5 == 0:
                             self.logger.info(f"Epoch {epoch+1}, Batch {batch_idx+1}, Loss: {batch_loss:.4f}")
 
-                updated_params = self.get_parameters(GetParametersIns()).parameters
+                updated_params = self.get_parameters(GetParametersIns(config={})).parameters
                 metrics = {
                     "loss": total_loss / (local_epochs * num_batches),
                     "epochs": local_epochs,

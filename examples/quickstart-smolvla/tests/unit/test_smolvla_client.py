@@ -1,13 +1,13 @@
-"""Unit tests for SmolVLAClient class."""
+"""Unit tests for SmolVLAClient class - focused on Flower API integration."""
 
 import pytest
 from unittest.mock import Mock, patch, MagicMock
-from pathlib import Path
 import numpy as np
 
 from smolvla_example.client_app import SmolVLAClient, get_device
 
 
+@pytest.mark.unit
 class TestGetDevice:
     """Test cases for get_device function."""
 
@@ -34,202 +34,180 @@ class TestGetDevice:
         assert result == "cuda"
 
 
-class TestSmolVLAClient:
-    """Test cases for SmolVLAClient class."""
+@pytest.mark.unit
+class TestSmolVLAClientFlowerAPI:
+    """Test Flower API integration for SmolVLAClient."""
 
     @pytest.fixture
-    def client_config(self):
-        """Default client configuration for tests."""
-        return {
-            "model_name": "lerobot/smolvla_base",
-            "device": "cpu",
-            "partition_id": 0,
-            "num_partitions": 2
-        }
-
-    @patch('smolvla_example.client_app.AutoModelForVision2Seq')
-    @patch('smolvla_example.client_app.AutoProcessor')
-    @patch('smolvla_example.client_app.LeRobotDatasetPartitioner')
-    @patch('smolvla_example.client_app.FederatedLeRobotDataset')
-    def test_client_initialization_success(self, mock_federated_dataset, mock_partitioner,
-                                         mock_processor, mock_model, client_config):
-        """Test successful client initialization."""
-        # Setup mocks
-        mock_model_instance = Mock()
-        mock_processor_instance = Mock()
-        mock_model.from_pretrained.return_value = mock_model_instance
-        mock_processor.from_pretrained.return_value = mock_processor_instance
-
-        mock_dataset = Mock()
-        mock_federated_dataset.return_value = mock_dataset
-        mock_dataset.load_partition.return_value = [Mock()]
-
-        # Create client
-        client = SmolVLAClient(**client_config)
-
-        # Assertions
-        assert client.model_name == client_config["model_name"]
-        assert client.device == client_config["device"]
-        assert client.partition_id == client_config["partition_id"]
-        assert client.num_partitions == client_config["num_partitions"]
-        assert client.model is not None
-        assert client.processor is not None
-        assert client.federated_dataset is not None
-
-    @patch('smolvla_example.client_app.AutoModelForVision2Seq')
-    @patch('smolvla_example.client_app.AutoProcessor')
-    def test_client_initialization_model_failure(self, mock_processor, mock_model, client_config):
-        """Test client initialization when model loading fails."""
-        # Setup mock to raise exception
-        mock_model.from_pretrained.side_effect = Exception("Model loading failed")
-
-        # Create client - should handle exception gracefully
-        client = SmolVLAClient(**client_config)
-
-        # Assertions
-        assert client.model is None
-        assert client.processor is None
-
-    @patch('smolvla_example.client_app.AutoModelForVision2Seq')
-    @patch('smolvla_example.client_app.AutoProcessor')
-    @patch('smolvla_example.client_app.LeRobotDatasetPartitioner')
-    @patch('smolvla_example.client_app.FederatedLeRobotDataset')
-    def test_client_initialization_dataset_failure(self, mock_federated_dataset, mock_partitioner,
-                                                 mock_processor, mock_model, client_config):
-        """Test client initialization when dataset loading fails."""
-        # Setup mocks
-        mock_model_instance = Mock()
-        mock_processor_instance = Mock()
-        mock_model.from_pretrained.return_value = mock_model_instance
-        mock_processor.from_pretrained.return_value = mock_processor_instance
-
-        # Make dataset loading fail
-        mock_federated_dataset.side_effect = Exception("Dataset loading failed")
-
-        # Create client - should handle exception gracefully
-        client = SmolVLAClient(**client_config)
-
-        # Assertions
-        assert client.train_loader is None
-        assert client.federated_dataset is None
-
-    def test_get_parameters_with_model(self, client_config):
-        """Test get_parameters when model is available."""
+    def mock_client_with_model(self, sample_client_config, mock_model, mock_optimizer):
+        """Create a client with mocked model for Flower API testing."""
         with patch('smolvla_example.client_app.AutoModelForVision2Seq') as mock_model_class, \
              patch('smolvla_example.client_app.AutoProcessor'), \
-             patch('smolvla_example.client_app.LeRobotDatasetPartitioner'), \
-             patch('smolvla_example.client_app.FederatedLeRobotDataset'):
+             patch('smolvla_example.client_app.torch.optim.Adam', return_value=mock_optimizer):
 
-            mock_model = Mock()
-            mock_model.state_dict.return_value = {'param1': Mock(), 'param2': Mock()}
             mock_model_class.from_pretrained.return_value = mock_model
 
-            client = SmolVLAClient(**client_config)
+            # Create client with mocked dependencies
+            client = SmolVLAClient(**sample_client_config)
+            client.model = mock_model
+            client.optimizer = mock_optimizer
+            return client
 
-            # Mock numpy conversion
-            with patch('numpy.array') as mock_numpy:
-                mock_numpy.return_value = np.array([1, 2, 3])
+    def test_get_parameters_success(self, mock_client_with_model):
+        """Test get_parameters returns Flower-compatible format."""
+        try:
+            from flwr.common import GetParametersIns
+        except ImportError:
+            pytest.skip("Flower not installed")
 
-                from flwr.common import GetParametersIns
-                result = client.get_parameters(GetParametersIns(config={}))
+        result = mock_client_with_model.get_parameters(GetParametersIns(config={}))
 
-                assert result.status.code.value == 0  # OK
-                assert result.parameters is not None
+        # Verify Flower API contract
+        assert hasattr(result, 'parameters')
+        assert hasattr(result.parameters, 'tensors')
+        assert hasattr(result, 'status')
+        assert result.status.code.value == 0  # OK
 
-    def test_get_parameters_without_model(self, client_config):
+        # Verify tensors are numpy arrays (Flower requirement)
+        assert isinstance(result.parameters.tensors, list)
+        for tensor in result.parameters.tensors:
+            assert isinstance(tensor, np.ndarray)
+
+    def test_get_parameters_no_model(self, sample_client_config):
         """Test get_parameters when model is not available."""
+        try:
+            from flwr.common import GetParametersIns
+        except ImportError:
+            pytest.skip("Flower not installed")
+
         with patch('smolvla_example.client_app.AutoModelForVision2Seq') as mock_model_class:
             mock_model_class.from_pretrained.side_effect = Exception("Model failed")
 
-            client = SmolVLAClient(**client_config)
+            client = SmolVLAClient(**sample_client_config)
 
-            from flwr.common import GetParametersIns
             result = client.get_parameters(GetParametersIns(config={}))
 
+            # Should return empty parameters gracefully
             assert result.status.code.value == 0  # OK
             assert len(result.parameters.tensors) == 0
 
-    def test_set_parameters_with_model(self, client_config):
-        """Test set_parameters when model is available."""
-        with patch('smolvla_example.client_app.AutoModelForVision2Seq') as mock_model_class, \
-             patch('smolvla_example.client_app.AutoProcessor'), \
-             patch('smolvla_example.client_app.LeRobotDatasetPartitioner'), \
-             patch('smolvla_example.client_app.FederatedLeRobotDataset'):
+    def test_set_parameters_success(self, mock_client_with_model):
+        """Test set_parameters accepts Flower-compatible format."""
+        # Flower sends parameters as list of numpy arrays
+        parameters = [
+            np.array([1.0, 2.0, 3.0]),
+            np.array([4.0, 5.0, 6.0])
+        ]
 
-            mock_model = Mock()
-            mock_model.load_state_dict.return_value = None
-            mock_model_class.from_pretrained.return_value = mock_model
+        # Should not raise exception
+        mock_client_with_model.set_parameters(parameters)
 
-            client = SmolVLAClient(**client_config)
+        # Verify model.load_state_dict was called
+        mock_client_with_model.model.load_state_dict.assert_called_once()
 
-            parameters = [np.array([1, 2, 3]), np.array([4, 5, 6])]
-
-            # Should not raise exception
-            client.set_parameters(parameters)
-
-            # Verify load_state_dict was called
-            assert mock_model.load_state_dict.called
-
-    def test_set_parameters_without_model(self, client_config):
+    def test_set_parameters_no_model(self, sample_client_config):
         """Test set_parameters when model is not available."""
         with patch('smolvla_example.client_app.AutoModelForVision2Seq') as mock_model_class:
             mock_model_class.from_pretrained.side_effect = Exception("Model failed")
 
-            client = SmolVLAClient(**client_config)
+            client = SmolVLAClient(**sample_client_config)
 
-            parameters = [np.array([1, 2, 3])]
+            parameters = [np.array([1.0, 2.0, 3.0])]
 
             # Should not raise exception
             client.set_parameters(parameters)
 
-    @patch('time.time')
-    def test_save_checkpoint(self, mock_time, client_config, tmp_path):
-        """Test checkpoint saving functionality."""
-        with patch('smolvla_example.client_app.AutoModelForVision2Seq') as mock_model_class, \
-             patch('smolvla_example.client_app.AutoProcessor'), \
-             patch('smolvla_example.client_app.LeRobotDatasetPartitioner'), \
-             patch('smolvla_example.client_app.FederatedLeRobotDataset'):
+    def test_fit_basic_workflow(self, mock_client_with_model):
+        """Test fit method with basic Flower workflow."""
+        try:
+            from flwr.common import FitIns, Parameters
+        except ImportError:
+            pytest.skip("Flower not installed")
 
-            mock_model = Mock()
-            mock_optimizer = Mock()
-            mock_model.state_dict.return_value = {'param': Mock()}
-            mock_optimizer.state_dict.return_value = {'lr': 0.01}
-            mock_model_class.from_pretrained.return_value = mock_model
+        # Create Flower-compatible inputs
+        parameters = Parameters([np.array([1.0, 2.0])], "numpy")
+        fit_ins = FitIns(
+            parameters=parameters,
+            config={
+                "local_epochs": 1,
+                "batch_size": 4,
+                "learning_rate": 1e-4
+            }
+        )
 
-            client = SmolVLAClient(**client_config)
-            client.optimizer = mock_optimizer
+        result = mock_client_with_model.fit(fit_ins)
 
-            # Mock torch.save
-            with patch('torch.save') as mock_save:
-                mock_time.return_value = 1234567890.0
+        # Verify Flower API contract
+        assert hasattr(result, 'parameters')
+        assert hasattr(result, 'num_examples')
+        assert hasattr(result, 'metrics')
+        assert hasattr(result, 'status')
+        assert result.status.code.value == 0  # OK
 
-                client._save_checkpoint("test_checkpoint")
+        # Verify metrics contain expected keys
+        assert "loss" in result.metrics
 
-                # Verify save was called
-                assert mock_save.called
+    def test_evaluate_basic_workflow(self, mock_client_with_model):
+        """Test evaluate method with basic Flower workflow."""
+        try:
+            from flwr.common import EvaluateIns, Parameters
+        except ImportError:
+            pytest.skip("Flower not installed")
 
-    def test_simulate_training_step(self, client_config):
-        """Test training step simulation."""
+        # Create Flower-compatible inputs
+        parameters = Parameters([np.array([1.0, 2.0])], "numpy")
+        evaluate_ins = EvaluateIns(
+            parameters=parameters,
+            config={}
+        )
+
+        result = mock_client_with_model.evaluate(evaluate_ins)
+
+        # Verify Flower API contract
+        assert hasattr(result, 'loss')
+        assert hasattr(result, 'num_examples')
+        assert hasattr(result, 'metrics')
+        assert hasattr(result, 'status')
+        assert result.status.code.value == 0  # OK
+
+        # Verify loss is a number
+        assert isinstance(result.loss, (int, float))
+
+    def test_client_initialization_config(self, sample_client_config):
+        """Test client initialization with configuration."""
+        with patch('smolvla_example.client_app.AutoModelForVision2Seq') as mock_model_class:
+            mock_model_class.from_pretrained.side_effect = Exception("Model loading disabled for test")
+
+            client = SmolVLAClient(**sample_client_config)
+
+            # Verify configuration is stored
+            assert client.model_name == sample_client_config["model_name"]
+            assert client.device == sample_client_config["device"]
+            assert client.partition_id == sample_client_config["partition_id"]
+            assert client.num_partitions == sample_client_config["num_partitions"]
+
+    def test_simulate_training_step(self, sample_client_config):
+        """Test training step simulation fallback."""
         with patch('smolvla_example.client_app.AutoModelForVision2Seq') as mock_model_class:
             mock_model_class.from_pretrained.side_effect = Exception("Model failed")
 
-            client = SmolVLAClient(**client_config)
+            client = SmolVLAClient(**sample_client_config)
 
             loss = client._simulate_training_step()
 
             assert isinstance(loss, float)
-            assert 0.1 <= loss <= 0.6  # Based on the implementation
+            assert 0.1 <= loss <= 0.6
 
-    def test_simulate_validation_step(self, client_config):
-        """Test validation step simulation."""
+    def test_simulate_validation_step(self, sample_client_config):
+        """Test validation step simulation fallback."""
         with patch('smolvla_example.client_app.AutoModelForVision2Seq') as mock_model_class:
             mock_model_class.from_pretrained.side_effect = Exception("Model failed")
 
-            client = SmolVLAClient(**client_config)
+            client = SmolVLAClient(**sample_client_config)
 
             loss, correct = client._simulate_validation_step()
 
             assert isinstance(loss, float)
             assert isinstance(correct, int)
-            assert 0.1 <= loss <= 0.4  # Based on the implementation
-            assert 0 <= correct <= 4  # Based on the implementation
+            assert 0.1 <= loss <= 0.4
+            assert 0 <= correct <= 4

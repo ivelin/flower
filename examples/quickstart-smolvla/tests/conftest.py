@@ -2,46 +2,12 @@
 
 import pytest
 import sys
-import os
 from pathlib import Path
 from unittest.mock import Mock, MagicMock
+import numpy as np
 
 # Add the smolvla_example directory to the path
 sys.path.insert(0, str(Path(__file__).parent.parent / "smolvla_example"))
-
-
-@pytest.fixture
-def mock_torch():
-    """Mock torch module for testing."""
-    mock = MagicMock()
-    mock.cuda.is_available.return_value = False
-    mock.device.return_value = "cpu"
-    return mock
-
-
-@pytest.fixture
-def mock_transformers():
-    """Mock transformers module for testing."""
-    mock = MagicMock()
-    mock.AutoModelForVision2Seq.from_pretrained.return_value = Mock()
-    mock.AutoProcessor.from_pretrained.return_value = Mock()
-    return mock
-
-
-@pytest.fixture
-def mock_federated_dataset():
-    """Mock federated dataset for testing."""
-    mock = MagicMock()
-    mock.load_partition.return_value = [Mock()]  # Mock dataset partition
-    return mock
-
-
-@pytest.fixture
-def mock_dataloader():
-    """Mock DataLoader for testing."""
-    mock = MagicMock()
-    mock.__iter__.return_value = [Mock()]  # Mock batch
-    return mock
 
 
 @pytest.fixture
@@ -67,33 +33,40 @@ def client_config():
 
 
 @pytest.fixture
-def mock_flower_client():
-    """Mock Flower client components."""
-    mock_client = MagicMock()
-    mock_client.get_parameters.return_value = MagicMock()
-    mock_client.set_parameters.return_value = None
-    mock_client.fit.return_value = MagicMock()
-    mock_client.evaluate.return_value = MagicMock()
-    return mock_client
+def mock_model():
+    """Simple mock model for Flower API testing."""
+    model = MagicMock()
+
+    # Mock state_dict to return numpy arrays (what Flower expects)
+    model.state_dict.return_value = {
+        'param1': np.array([1.0, 2.0, 3.0]),
+        'param2': np.array([4.0, 5.0, 6.0])
+    }
+    model.load_state_dict = MagicMock()
+
+    # Mock training methods
+    model.train = MagicMock()
+    model.eval = MagicMock()
+
+    return model
 
 
-@pytest.fixture(autouse=True)
-def mock_imports(monkeypatch, mock_torch, mock_transformers, mock_federated_dataset, mock_dataloader):
-    """Automatically mock external dependencies."""
-    # Mock torch module
-    monkeypatch.setattr("smolvla_example.client_app.torch", mock_torch)
-    monkeypatch.setattr("smolvla_example.client_app.torch.cuda", mock_torch.cuda)
-    monkeypatch.setattr("smolvla_example.client_app.torch.device", mock_torch.device)
-    monkeypatch.setattr("smolvla_example.client_app.torch.utils.data.DataLoader", mock_dataloader)
+@pytest.fixture
+def mock_optimizer():
+    """Mock optimizer for testing."""
+    optimizer = MagicMock()
+    optimizer.step = MagicMock()
+    optimizer.zero_grad = MagicMock()
+    optimizer.state_dict.return_value = {'lr': 0.01}
+    optimizer.param_groups = [{'lr': 0.01}]
+    return optimizer
 
-    # Mock transformers module
-    monkeypatch.setattr("smolvla_example.client_app.transformers", mock_transformers)
-    monkeypatch.setattr("smolvla_example.client_app.transformers.AutoModelForVision2Seq", mock_transformers.AutoModelForVision2Seq)
-    monkeypatch.setattr("smolvla_example.client_app.transformers.AutoProcessor", mock_transformers.AutoProcessor)
 
-    # Mock federated dataset utilities
-    monkeypatch.setattr("smolvla_example.client_app.LeRobotDatasetPartitioner", Mock)
-    monkeypatch.setattr("smolvla_example.client_app.FederatedLeRobotDataset", Mock(return_value=mock_federated_dataset))
+@pytest.fixture
+def mock_processor():
+    """Mock processor for transformers."""
+    processor = MagicMock()
+    return processor
 
 
 @pytest.fixture
