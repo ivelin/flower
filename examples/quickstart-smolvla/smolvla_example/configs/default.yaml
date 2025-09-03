@@ -1,0 +1,21 @@
+# Default configuration for SmolVLA Federated Learning
+model:
+  name: "lerobot/smolvla_base"
+  device: "cpu"
+
+training:
+  num_rounds: 100
+  fraction_fit: 0.4
+  fraction_evaluate: 0.4
+  local_epochs: 200
+  server_device: "cpu"
+  use_wandb: true
+
+federation:
+  num_supernodes: 10  # Relatively low number because SmolVLA is memory efficient
+
+# Policy configuration
+policy:
+  vla:
+    model_name: "lerobot/smolvla_base"
+    device: "cpu"
