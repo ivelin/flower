@@ -2,12 +2,23 @@
 
 import flwr as fl
 from flwr.server import ServerApp, ServerConfig
+import torch
 
 
-# Create server app
+def get_device(device_str: str = "auto"):
+    """Get torch device from string specification."""
+    if device_str == "auto":
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    elif device_str == "cuda":
+        return torch.device("cuda")
+    else:
+        return torch.device("cpu")
+
+
+# Create server app with configuration
 app = ServerApp(
     config=ServerConfig(
-        num_rounds=100,  # For good results, total training rounds should be over 100,000
+        num_rounds=50,  # Reduced for initial testing
     )
 )
 
